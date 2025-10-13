@@ -588,6 +588,9 @@ Answer:"""
         
         qa_pairs = []
         
+        # Initialize CSV file with headers
+        self.write_csv([], kwargs.get('output_file', 'results.csv'), append=False)
+        
         # Process each question
         for i, question in enumerate(tqdm(questions, desc="Processing questions")):
             logger.info(f"Question {i+1}/{len(questions)}: {question[:50]}...")
@@ -611,13 +614,22 @@ Answer:"""
                 
                 qa_pairs.append((question, answer))
                 
+                # Write incrementally to CSV after each question
+                self.write_csv([(question, answer)], kwargs.get('output_file', 'results.csv'), append=True)
+                logger.info(f"Progress saved: {i+1}/{len(questions)} questions completed")
+                
             except Exception as e:
                 logger.error(f"Error processing question {i+1}: {e}")
-                qa_pairs.append((question, "I encountered an error processing this question."))
+                error_answer = "I encountered an error processing this question."
+                qa_pairs.append((question, error_answer))
+                
+                # Still write the error to CSV
+                self.write_csv([(question, error_answer)], kwargs.get('output_file', 'results.csv'), append=True)
+                logger.info(f"Error saved: {i+1}/{len(questions)} questions completed")
         
         return qa_pairs
     
-    def write_csv(self, qa_pairs: List[Tuple[str, str]], output_path: str) -> None:
+    def write_csv(self, qa_pairs: List[Tuple[str, str]], output_path: str, append: bool = False) -> None:
         """Write Q&A pairs to CSV file in results folder"""
         # Ensure results directory exists
         os.makedirs('results', exist_ok=True)
@@ -626,22 +638,35 @@ Answer:"""
         if not output_path.startswith('results/'):
             output_path = f'results/{output_path}'
         
-        logger.info(f"Writing results to {output_path}")
+        if append:
+            logger.info(f"Appending results to {output_path}")
+        else:
+            logger.info(f"Writing results to {output_path}")
         
         # Create output directory if needed
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         
         try:
-            with open(output_path, 'w', newline='', encoding='utf-8') as f:
+            # Check if file exists and if we're appending
+            file_exists = output_path.exists()
+            write_mode = 'a' if append and file_exists else 'w'
+            
+            with open(output_path, write_mode, newline='', encoding='utf-8') as f:
                 writer = csv.writer(f)
-                writer.writerow(['question', 'answer'])
+                
+                # Write header only if creating new file or first append
+                if not append or not file_exists:
+                    writer.writerow(['question', 'answer'])
                 
                 for question, answer in qa_pairs:
                     # Escape special characters for CSV
                     writer.writerow([question, answer])
             
-            logger.info(f"Successfully wrote {len(qa_pairs)} Q&A pairs to {output_path}")
+            if append:
+                logger.info(f"Appended {len(qa_pairs)} Q&A pairs to {output_path}")
+            else:
+                logger.info(f"Successfully wrote {len(qa_pairs)} Q&A pairs to {output_path}")
             
         except Exception as e:
             logger.error(f"Failed to write CSV: {e}")
@@ -749,10 +774,7 @@ def main():
             'repetition_penalty': args.repetition_penalty
         }
         
-        qa_pairs = bot.process_questions(args.questions, **generation_kwargs)
-        
-        # Write results
-        bot.write_csv(qa_pairs, args.out)
+        qa_pairs = bot.process_questions(args.questions, output_file=args.out, **generation_kwargs)
         
         logger.info("RAG Chatbot completed successfully")
         

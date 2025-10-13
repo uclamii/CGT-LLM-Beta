@@ -300,21 +300,3 @@ sequenceDiagram
 ## 📄 License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
-
-## 🙏 Acknowledgments
-
-- **Meta AI** for the Llama-3.2-3B-Instruct model
-- **ChromaDB** for vector database functionality
-- **Sentence Transformers** for embedding generation
-- **Hugging Face** for model hosting and transformers library
-
-## 📞 Support
-
-For questions, issues, or contributions:
-- Create an issue in the repository
-- Check the troubleshooting section
-- Review the verbose logs for debugging
-
----
-
-**Built with ❤️ for efficient medical document analysis and question answering**
