@@ -638,7 +638,7 @@ Question: {question}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
             logger.error(f"Generation error: {e}")
             return "I encountered an error while generating the answer."
     
-    def process_questions(self, questions_path: str, **kwargs) -> List[Tuple[str, str]]:
+    def process_questions(self, questions_path: str, **kwargs) -> List[Tuple[str, str, str]]:
         """Process all questions and generate answers"""
         logger.info(f"Processing questions from {questions_path}")
         
@@ -667,6 +667,7 @@ Question: {question}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
                 
                 if not context_chunks:
                     answer = "I don't know."
+                    sources = "No sources found"
                 else:
                     # Format prompt
                     prompt = self.format_prompt(context_chunks, question)
@@ -676,26 +677,59 @@ Question: {question}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
                     answer = self.generate_answer(prompt, **kwargs)
                     gen_time = time.time() - start_time
                     
+                    # Extract source documents
+                    sources = self._extract_sources(context_chunks)
+                    
                     logger.info(f"Generated answer in {gen_time:.2f}s")
+                    logger.info(f"Sources: {sources}")
                 
-                qa_pairs.append((question, answer))
+                qa_pairs.append((question, answer, sources))
                 
                 # Write incrementally to CSV after each question
-                self.write_csv([(question, answer)], kwargs.get('output_file', 'results.csv'), append=True)
+                self.write_csv([(question, answer, sources)], kwargs.get('output_file', 'results.csv'), append=True)
                 logger.info(f"Progress saved: {i+1}/{len(questions)} questions completed")
                 
             except Exception as e:
                 logger.error(f"Error processing question {i+1}: {e}")
                 error_answer = "I encountered an error processing this question."
-                qa_pairs.append((question, error_answer))
+                sources = "Error retrieving sources"
+                qa_pairs.append((question, error_answer, sources))
                 
                 # Still write the error to CSV
-                self.write_csv([(question, error_answer)], kwargs.get('output_file', 'results.csv'), append=True)
+                self.write_csv([(question, error_answer, sources)], kwargs.get('output_file', 'results.csv'), append=True)
                 logger.info(f"Error saved: {i+1}/{len(questions)} questions completed")
         
         return qa_pairs
     
-    def write_csv(self, qa_pairs: List[Tuple[str, str]], output_path: str, append: bool = False) -> None:
+    def _extract_sources(self, context_chunks: List[Chunk]) -> str:
+        """Extract source document names from context chunks"""
+        sources = []
+        for chunk in context_chunks:
+            # Debug: Print chunk filename if verbose
+            if self.args.verbose:
+                logger.info(f"Chunk filename: {chunk.filename}")
+            
+            # Extract filename from chunk attribute (not metadata)
+            source = chunk.filename if hasattr(chunk, 'filename') and chunk.filename else 'Unknown source'
+            # Clean up the source name
+            if source.endswith('.pdf'):
+                source = source[:-4]  # Remove .pdf extension
+            elif source.endswith('.txt'):
+                source = source[:-4]  # Remove .txt extension
+            elif source.endswith('.md'):
+                source = source[:-3]  # Remove .md extension
+            
+            sources.append(source)
+        
+        # Remove duplicates while preserving order
+        unique_sources = []
+        for source in sources:
+            if source not in unique_sources:
+                unique_sources.append(source)
+        
+        return "; ".join(unique_sources)
+    
+    def write_csv(self, qa_pairs: List[Tuple[str, str, str]], output_path: str, append: bool = False) -> None:
         """Write Q&A pairs to CSV file in results folder"""
         # Ensure results directory exists
         os.makedirs('results', exist_ok=True)
@@ -723,9 +757,9 @@ Question: {question}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
                 
                 # Write header only if creating new file or first append
                 if not append or not file_exists:
-                    writer.writerow(['question', 'answer'])
+                    writer.writerow(['question', 'answer', 'sources'])
                 
-                for question, answer in qa_pairs:
+                for question, answer, sources in qa_pairs:
                     # Clean and escape the answer for CSV
                     # Replace newlines with spaces and clean up formatting
                     clean_answer = answer.replace('\n', ' ').replace('\r', ' ')
@@ -734,13 +768,19 @@ Question: {question}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
                     # Escape quotes properly for CSV
                     clean_answer = clean_answer.replace('"', '""')
                     
+                    # Clean sources as well
+                    clean_sources = sources.replace('\n', ' ').replace('\r', ' ')
+                    clean_sources = ' '.join(clean_sources.split())
+                    clean_sources = clean_sources.replace('"', '""')
+                    
                     # Log the full answer length for debugging
                     if self.args.verbose:
                         logger.info(f"Writing answer length: {len(clean_answer)} characters")
                         logger.info(f"Answer preview: {clean_answer[:200]}...")
+                        logger.info(f"Sources: {clean_sources}")
                     
                     # Use proper CSV quoting - let csv.writer handle the quoting
-                    writer.writerow([question, clean_answer])
+                    writer.writerow([question, clean_answer, clean_sources])
             
             if append:
                 logger.info(f"Appended {len(qa_pairs)} Q&A pairs to {output_path}")
