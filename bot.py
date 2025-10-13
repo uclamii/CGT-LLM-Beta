@@ -493,18 +493,64 @@ class RAGBot:
         return chunks
     
     def format_prompt(self, context_chunks: List[Chunk], question: str) -> str:
-        """Format the prompt with context and question"""
+        """Format the prompt with context and question, ensuring it fits within token limits"""
         context_parts = []
         for chunk in context_chunks:
             context_parts.append(f"{chunk.text}")
         
         context = "\n".join(context_parts)
         
-        prompt = f"""Context: {context}
+        # Create base prompt structure
+        base_prompt = f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
 
-Question: {question}
+You are a helpful medical assistant. Answer questions based on the provided context. Be specific and informative.<|eot_id|><|start_header_id|>user<|end_header_id|>
 
-Answer:"""
+Context: {context}
+
+Question: {question}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+
+"""
+        
+        # Check if prompt is too long and truncate context if needed
+        max_context_tokens = 1200  # Leave room for generation
+        tokenized = self.tokenizer(base_prompt, return_tensors="pt")
+        current_tokens = tokenized['input_ids'].shape[1]
+        
+        if current_tokens > max_context_tokens:
+            # Truncate context to fit within limits
+            context_tokens = self.tokenizer(context, return_tensors="pt")['input_ids'].shape[1]
+            available_tokens = max_context_tokens - (current_tokens - context_tokens)
+            
+            if available_tokens > 0:
+                # Truncate context to fit
+                truncated_context = self.tokenizer.decode(
+                    self.tokenizer(context, return_tensors="pt", truncation=True, max_length=available_tokens)['input_ids'][0],
+                    skip_special_tokens=True
+                )
+                
+                prompt = f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+
+You are a helpful medical assistant. Answer questions based on the provided context. Be specific and informative.<|eot_id|><|start_header_id|>user<|end_header_id|>
+
+Context: {truncated_context}
+
+Question: {question}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+
+"""
+            else:
+                # If even basic prompt is too long, use minimal format
+                prompt = f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+
+Answer the question based on the context.<|eot_id|><|start_header_id|>user<|end_header_id|>
+
+Context: {context[:500]}...
+
+Question: {question}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+
+"""
+        else:
+            prompt = base_prompt
+            
         return prompt
     
     def generate_answer(self, prompt: str, **gen_kwargs) -> str:
@@ -513,8 +559,8 @@ Answer:"""
             if self.args.verbose:
                 logger.info(f"Full prompt (first 500 chars): {prompt[:500]}...")
             
-            # Tokenize input
-            inputs = self.tokenizer(prompt, return_tensors="pt", truncation=True, max_length=2048)
+            # Tokenize input with more conservative limit to leave room for generation
+            inputs = self.tokenizer(prompt, return_tensors="pt", truncation=True, max_length=1500)
             inputs = {k: v.to(self.device) for k, v in inputs.items()}
             
             if self.args.verbose:
@@ -525,9 +571,9 @@ Answer:"""
                 outputs = self.model.generate(
                     **inputs,
                     max_new_tokens=gen_kwargs.get('max_new_tokens', 512),
-                    temperature=gen_kwargs.get('temperature', 0.2),
-                    top_p=gen_kwargs.get('top_p', 0.9),
-                    repetition_penalty=gen_kwargs.get('repetition_penalty', 1.1),
+                    temperature=gen_kwargs.get('temperature', 0.7),
+                    top_p=gen_kwargs.get('top_p', 0.95),
+                    repetition_penalty=gen_kwargs.get('repetition_penalty', 1.05),
                     do_sample=True,
                     pad_token_id=self.tokenizer.eos_token_id,
                     eos_token_id=self.tokenizer.eos_token_id,
@@ -544,22 +590,36 @@ Answer:"""
                 if "Answer:" in response:
                     answer_part = response.split("Answer:")[-1]
                     logger.info(f"Answer part (first 200 chars): {answer_part[:200]}...")
+                
+                # Debug: Show the full response to understand the structure
+                logger.info(f"Full response length: {len(response)}")
+                logger.info(f"Prompt length: {len(prompt)}")
+                logger.info(f"Response after prompt (first 500 chars): {response[len(prompt):][:500]}...")
             
-            # Extract only the answer part - look for "Answer:" marker
-            if "Answer:" in response:
-                answer = response.split("Answer:")[-1].strip()
-            else:
-                # Fallback: take everything after the prompt
-                answer = response[len(prompt):].strip()
+            # Store the full LLM output - everything after the prompt
+            answer = response[len(prompt):].strip()
             
-            # Clean up the answer - remove any remaining prompt text
-            if "Question:" in answer:
-                answer = answer.split("Question:")[0].strip()
-            if "Context:" in answer:
-                answer = answer.split("Context:")[0].strip()
+            if self.args.verbose:
+                logger.info(f"Full LLM output (first 200 chars): {answer[:200]}...")
+                logger.info(f"Full LLM output length: {len(answer)} characters")
+                logger.info(f"Full LLM output (last 200 chars): ...{answer[-200:]}")
             
-            # Take the first sentence or paragraph
-            answer = answer.split('\n')[0].strip()
+            # Only do minimal cleanup to preserve the full response
+            # Remove special tokens that might interfere with display, but preserve content
+            if "<|start_header_id|>" in answer:
+                # Only remove if it's at the very end
+                if answer.endswith("<|start_header_id|>"):
+                    answer = answer[:-len("<|start_header_id|>")].strip()
+            if "<|eot_id|>" in answer:
+                # Only remove if it's at the very end
+                if answer.endswith("<|eot_id|>"):
+                    answer = answer[:-len("<|eot_id|>")].strip()
+            if "<|end_of_text|>" in answer:
+                # Only remove if it's at the very end
+                if answer.endswith("<|end_of_text|>"):
+                    answer = answer[:-len("<|end_of_text|>")].strip()
+            
+            # Final validation - only reject if completely empty
             if not answer or len(answer) < 3:
                 answer = "I don't know."
             
@@ -660,8 +720,21 @@ Answer:"""
                     writer.writerow(['question', 'answer'])
                 
                 for question, answer in qa_pairs:
-                    # Escape special characters for CSV
-                    writer.writerow([question, answer])
+                    # Clean and escape the answer for CSV
+                    # Replace newlines with spaces and clean up formatting
+                    clean_answer = answer.replace('\n', ' ').replace('\r', ' ')
+                    # Remove extra whitespace but preserve the full content
+                    clean_answer = ' '.join(clean_answer.split())
+                    # Escape quotes properly for CSV
+                    clean_answer = clean_answer.replace('"', '""')
+                    
+                    # Log the full answer length for debugging
+                    if self.args.verbose:
+                        logger.info(f"Writing answer length: {len(clean_answer)} characters")
+                        logger.info(f"Answer preview: {clean_answer[:200]}...")
+                    
+                    # Use proper CSV quoting - let csv.writer handle the quoting
+                    writer.writerow([question, clean_answer])
             
             if append:
                 logger.info(f"Appended {len(qa_pairs)} Q&A pairs to {output_path}")
@@ -688,17 +761,17 @@ def parse_args():
                        help='Directory for ChromaDB persistence')
     
     # Retrieval parameters
-    parser.add_argument('--k', type=int, default=5,
+    parser.add_argument('--k', type=int, default=3,
                        help='Number of chunks to retrieve per question')
     
     # Chunking parameters
-    parser.add_argument('--chunk-size', type=int, default=800,
+    parser.add_argument('--chunk-size', type=int, default=400,
                        help='Size of text chunks in tokens')
     parser.add_argument('--chunk-overlap', type=int, default=150,
                        help='Overlap between chunks in tokens')
     
     # Generation parameters
-    parser.add_argument('--max-new-tokens', type=int, default=512,
+    parser.add_argument('--max-new-tokens', type=int, default=1024,
                        help='Maximum new tokens to generate')
     parser.add_argument('--temperature', type=float, default=0.2,
                        help='Generation temperature')
