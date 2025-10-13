@@ -581,8 +581,8 @@ Question: {question}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
                     num_beams=1
                 )
             
-            # Decode response
-            response = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+            # Decode response without skipping special tokens to preserve full length
+            response = self.tokenizer.decode(outputs[0], skip_special_tokens=False)
             
             if self.args.verbose:
                 logger.info(f"Full response (first 1000 chars): {response[:1000]}...")
@@ -596,8 +596,14 @@ Question: {question}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
                 logger.info(f"Prompt length: {len(prompt)}")
                 logger.info(f"Response after prompt (first 500 chars): {response[len(prompt):][:500]}...")
             
-            # Store the full LLM output - everything after the prompt
-            answer = response[len(prompt):].strip()
+            # Extract the answer more robustly by looking for the end of the prompt
+            # Find the actual end of the prompt in the response
+            prompt_end_marker = "<|start_header_id|>assistant<|end_header_id|>\n\n"
+            if prompt_end_marker in response:
+                answer = response.split(prompt_end_marker)[-1].strip()
+            else:
+                # Fallback to character-based extraction
+                answer = response[len(prompt):].strip()
             
             if self.args.verbose:
                 logger.info(f"Full LLM output (first 200 chars): {answer[:200]}...")
