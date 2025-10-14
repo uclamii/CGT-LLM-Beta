@@ -145,6 +145,7 @@ results/
 # Vector database
 test_chroma_db/
 chroma_db/
+chromadb/
 *.db
 *.sqlite
 
