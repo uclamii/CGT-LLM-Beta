@@ -1,0 +1,109 @@
+What does an MSH2 genetic variant mean for me?
+Is this MSH2 variant something I inherited?
+Does having an MSH2 mutation mean I will definitely have cancer?
+Why should I share my MSH2 genetic results with family?
+Can I pass this MSH2 variant to my kids?
+Can an MSH2 variant skip a generation?
+What are the recommendations for my family members if I have an MSH2 mutation?
+Does this MSH2 genetic variant affect my cancer treatment?
+What types of cancers am I at risk for with an MSH2 mutation?
+What screening tests do you recommend for MSH2 carriers?
+What does an MLH1 genetic variant mean for me?
+Is this MLH1 variant something I inherited?
+Does having an MLH1 mutation mean I will definitely have cancer?
+Why should I share my MLH1 genetic results with family?
+Can I pass this MLH1 variant to my kids?
+Can an MLH1 variant skip a generation?
+What are the recommendations for my family members if I have an MLH1 mutation?
+Does this MLH1 genetic variant affect my cancer treatment?
+What types of cancers am I at risk for with an MLH1 mutation?
+What screening tests do you recommend for MLH1 carriers?
+What does an MSH6 genetic variant mean for me?
+Is this MSH6 variant something I inherited?
+Does having an MSH6 mutation mean I will definitely have cancer?
+Why should I share my MSH6 genetic results with family?
+Can I pass this MSH6 variant to my kids?
+Can an MSH6 variant skip a generation?
+What are the recommendations for my family members if I have an MSH6 mutation?
+Does this MSH6 genetic variant affect my cancer treatment?
+What types of cancers am I at risk for with an MSH6 mutation?
+What screening tests do you recommend for MSH6 carriers?
+What does a PMS2 genetic variant mean for me?
+Is this PMS2 variant something I inherited?
+Does having a PMS2 mutation mean I will definitely have cancer?
+Why should I share my PMS2 genetic results with family?
+Can I pass this PMS2 variant to my kids?
+Can a PMS2 variant skip a generation?
+What are the recommendations for my family members if I have a PMS2 mutation?
+Does this PMS2 genetic variant affect my cancer treatment?
+What types of cancers am I at risk for with a PMS2 mutation?
+What screening tests do you recommend for PMS2 carriers?
+What does an EPCAM/MSH2 genetic variant mean for me?
+Is this EPCAM/MSH2 variant something I inherited?
+Does having an EPCAM/MSH2 mutation mean I will definitely have cancer?
+Why should I share my EPCAM/MSH2 genetic results with family?
+Can I pass this EPCAM/MSH2 variant to my kids?
+Can an EPCAM/MSH2 variant skip a generation?
+What are the recommendations for my family members if I have an EPCAM/MSH2 mutation?
+Does this EPCAM/MSH2 genetic variant affect my cancer treatment?
+What types of cancers am I at risk for with an EPCAM/MSH2 mutation?
+What screening tests do you recommend for EPCAM/MSH2 carriers?
+What does a BRCA1 genetic variant mean for me?
+Is this BRCA1 variant something I inherited?
+Does having a BRCA1 mutation mean I will definitely have cancer?
+Why should I share my BRCA1 genetic results with family?
+Can I pass this BRCA1 variant to my kids?
+Can a BRCA1 variant skip a generation?
+What are the recommendations for my family members if I have a BRCA1 mutation?
+Does this BRCA1 genetic variant affect my cancer treatment?
+What types of cancers am I at risk for with a BRCA1 mutation?
+What screening tests do you recommend for BRCA1 carriers?
+What does a BRCA2 genetic variant mean for me?
+Is this BRCA2 variant something I inherited?
+Does having a BRCA2 mutation mean I will definitely have cancer?
+Why should I share my BRCA2 genetic results with family?
+Can I pass this BRCA2 variant to my kids?
+Can a BRCA2 variant skip a generation?
+What are the recommendations for my family members if I have a BRCA2 mutation?
+Does this BRCA2 genetic variant affect my cancer treatment?
+What types of cancers am I at risk for with a BRCA2 mutation?
+What screening tests do you recommend for BRCA2 carriers?
+Who are my first-degree relatives?
+Should my family members get tested?
+Which of my relatives are at risk?
+Should I contact my male and female relatives?
+Can only women carry a BRCA inherited mutation?
+What if a family member doesn't want to get tested?
+How can I get my kids tested?
+At what age should my children get tested?
+Why would my relatives want to know if they have this? What can they do about it?
+I don't talk to my family/parents/sister/brother. How can I share this with them?
+What if I want to have children and have a hereditary cancer gene? What are my reproductive options?
+I have a BRCA pathogenic variant and I want to have children, what are my options?
+Is genetic testing for my family members covered by insurance?
+Will this affect my health insurance?
+People who test positive for a genetic mutation are they at risk of losing their health insurance?
+Does GINA cover life or disability insurance?
+Will my insurance cover testing for my parents/brother/sister?
+My relative doesn't have insurance. What should they do?
+How can I cope with this diagnosis?
+What if I feel overwhelmed?
+Is new research being done on my condition?
+How can I help others with my condition?
+Where can I find a genetic counselor?
+What other resources are available to help me?
+Who do my family members call to have genetic testing?
+What steps can I take to manage my cancer risk if I have Lynch syndrome?
+What are the Risks and Benefits of Risk-Reducing Surgeries for Lynch Syndrome?
+What is my cancer risk if I have MSH2 or EPCAM-associated Lynch syndrome?
+What is my cancer risk if I have PMS2 Lynch syndrome?
+What is my cancer risk if I have MLH1 Lynch syndrome?
+What is my cancer risk if I have MSH6 Lynch syndrome?
+What is my cancer risk if I have BRCA2 Hereditary Breast and Ovarian Cancer syndrome?
+What is my cancer risk if I have BRCA1 Hereditary Breast and Ovarian Cancer syndrome?
+What are the surveillance and preventions I can take to reduce my risk of cancer or detecting cancer early if I have an EPCAM/MSH2 mutation?
+What are the surveillance and preventions I can take to reduce my risk of cancer or detecting cancer early if I have an MSH2 mutation?
+What are the surveillance and preventions I can take to reduce my risk of cancer or detecting cancer early if I have a BRCA mutation?
+Why do some families with Lynch syndrome have more cases of cancer than others?
+How might my genetic test results change over time?
+What is Lynch Syndrome?

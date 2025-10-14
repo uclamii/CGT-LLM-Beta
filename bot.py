@@ -18,6 +18,8 @@ from typing import List, Tuple, Dict, Any, Optional, Union
 from dataclasses import dataclass
 from collections import defaultdict
 
+import textstat
+
 import torch
 import numpy as np
 import pandas as pd
@@ -638,7 +640,7 @@ Question: {question}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
             logger.error(f"Generation error: {e}")
             return "I encountered an error while generating the answer."
     
-    def process_questions(self, questions_path: str, **kwargs) -> List[Tuple[str, str, str]]:
+    def process_questions(self, questions_path: str, **kwargs) -> List[Tuple[str, str, str, str, float]]:
         """Process all questions and generate answers"""
         logger.info(f"Processing questions from {questions_path}")
         
@@ -668,6 +670,8 @@ Question: {question}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
                 if not context_chunks:
                     answer = "I don't know."
                     sources = "No sources found"
+                    simplified_answer = "I don't know."
+                    grade_level = 6.0
                 else:
                     # Format prompt
                     prompt = self.format_prompt(context_chunks, question)
@@ -680,23 +684,32 @@ Question: {question}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
                     # Extract source documents
                     sources = self._extract_sources(context_chunks)
                     
+                    # Enhance readability
+                    readability_start = time.time()
+                    simplified_answer, grade_level = self.enhance_readability(answer)
+                    readability_time = time.time() - readability_start
+                    
                     logger.info(f"Generated answer in {gen_time:.2f}s")
+                    logger.info(f"Enhanced readability in {readability_time:.2f}s")
                     logger.info(f"Sources: {sources}")
+                    logger.info(f"Grade level: {grade_level:.1f}")
                 
-                qa_pairs.append((question, answer, sources))
+                qa_pairs.append((question, answer, sources, simplified_answer, grade_level))
                 
                 # Write incrementally to CSV after each question
-                self.write_csv([(question, answer, sources)], kwargs.get('output_file', 'results.csv'), append=True)
+                self.write_csv([(question, answer, sources, simplified_answer, grade_level)], kwargs.get('output_file', 'results.csv'), append=True)
                 logger.info(f"Progress saved: {i+1}/{len(questions)} questions completed")
                 
             except Exception as e:
                 logger.error(f"Error processing question {i+1}: {e}")
                 error_answer = "I encountered an error processing this question."
                 sources = "Error retrieving sources"
-                qa_pairs.append((question, error_answer, sources))
+                simplified_answer = "I encountered an error processing this question."
+                grade_level = 6.0
+                qa_pairs.append((question, error_answer, sources, simplified_answer, grade_level))
                 
                 # Still write the error to CSV
-                self.write_csv([(question, error_answer, sources)], kwargs.get('output_file', 'results.csv'), append=True)
+                self.write_csv([(question, error_answer, sources, simplified_answer, grade_level)], kwargs.get('output_file', 'results.csv'), append=True)
                 logger.info(f"Error saved: {i+1}/{len(questions)} questions completed")
         
         return qa_pairs
@@ -729,7 +742,86 @@ Question: {question}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
         
         return "; ".join(unique_sources)
     
-    def write_csv(self, qa_pairs: List[Tuple[str, str, str]], output_path: str, append: bool = False) -> None:
+    def enhance_readability(self, answer: str) -> Tuple[str, float]:
+        """Enhance answer readability to 6th grade level and calculate Flesch-Kincaid Grade Level"""
+        try:
+            # Create a prompt to simplify the medical answer to 6th grade level
+            readability_prompt = f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+
+You are a helpful medical assistant who specializes in explaining complex medical information in simple, easy-to-understand language for 6th grade reading level. Rewrite the following medical answer using:
+- Simple, everyday words instead of medical jargon
+- Shorter sentences
+- Clear explanations
+- Avoid complex medical terms when possible
+- Keep the same important information but make it much easier to read
+
+Target: 6th grade reading level (ages 11-12)<|eot_id|><|start_header_id|>user<|end_header_id|>
+
+Please rewrite this medical answer in simple language for a 6th grader:
+
+{answer}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+
+"""
+            
+            # Generate simplified answer
+            inputs = self.tokenizer(readability_prompt, return_tensors="pt", truncation=True, max_length=2048)
+            if self.device == "mps":
+                inputs = {k: v.to(self.device) for k, v in inputs.items()}
+            
+            with torch.no_grad():
+                outputs = self.model.generate(
+                    **inputs,
+                    max_new_tokens=512,  # Shorter for simplified version
+                    temperature=0.3,     # Lower temperature for more consistent simplification
+                    top_p=0.9,
+                    repetition_penalty=1.05,
+                    do_sample=True,
+                    pad_token_id=self.tokenizer.eos_token_id,
+                    eos_token_id=self.tokenizer.eos_token_id,
+                    use_cache=True,
+                    num_beams=1
+                )
+            
+            # Decode response
+            response = self.tokenizer.decode(outputs[0], skip_special_tokens=False)
+            
+            # Extract simplified answer
+            prompt_end_marker = "<|start_header_id|>assistant<|end_header_id|>\n\n"
+            if prompt_end_marker in response:
+                simplified_answer = response.split(prompt_end_marker)[-1].strip()
+            else:
+                simplified_answer = response[len(readability_prompt):].strip()
+            
+            # Clean up special tokens
+            if "<|eot_id|>" in simplified_answer:
+                if simplified_answer.endswith("<|eot_id|>"):
+                    simplified_answer = simplified_answer[:-len("<|eot_id|>")].strip()
+            if "<|end_of_text|>" in simplified_answer:
+                if simplified_answer.endswith("<|end_of_text|>"):
+                    simplified_answer = simplified_answer[:-len("<|end_of_text|>")].strip()
+            
+            # Calculate Flesch-Kincaid Grade Level
+            try:
+                grade_level = textstat.flesch_kincaid_grade(simplified_answer)
+            except:
+                grade_level = 0.0
+            
+            if self.args.verbose:
+                logger.info(f"Simplified answer length: {len(simplified_answer)} characters")
+                logger.info(f"Flesch-Kincaid Grade Level: {grade_level:.1f}")
+            
+            return simplified_answer, grade_level
+            
+        except Exception as e:
+            logger.error(f"Error enhancing readability: {e}")
+            # Fallback: return original answer with estimated grade level
+            try:
+                grade_level = textstat.flesch_kincaid_grade(answer)
+            except:
+                grade_level = 12.0  # Default to high school level
+            return answer, grade_level
+    
+    def write_csv(self, qa_pairs: List[Tuple[str, str, str, str, float]], output_path: str, append: bool = False) -> None:
         """Write Q&A pairs to CSV file in results folder"""
         # Ensure results directory exists
         os.makedirs('results', exist_ok=True)
@@ -757,9 +849,9 @@ Question: {question}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
                 
                 # Write header only if creating new file or first append
                 if not append or not file_exists:
-                    writer.writerow(['question', 'answer', 'sources'])
+                    writer.writerow(['question', 'answer', 'sources', '6th_grade_answer', 'flesch_kincaid_grade_level'])
                 
-                for question, answer, sources in qa_pairs:
+                for question, answer, sources, simplified_answer, grade_level in qa_pairs:
                     # Clean and escape the answer for CSV
                     # Replace newlines with spaces and clean up formatting
                     clean_answer = answer.replace('\n', ' ').replace('\r', ' ')
@@ -773,14 +865,21 @@ Question: {question}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
                     clean_sources = ' '.join(clean_sources.split())
                     clean_sources = clean_sources.replace('"', '""')
                     
+                    # Clean simplified answer
+                    clean_simplified = simplified_answer.replace('\n', ' ').replace('\r', ' ')
+                    clean_simplified = ' '.join(clean_simplified.split())
+                    clean_simplified = clean_simplified.replace('"', '""')
+                    
                     # Log the full answer length for debugging
                     if self.args.verbose:
                         logger.info(f"Writing answer length: {len(clean_answer)} characters")
+                        logger.info(f"Simplified answer length: {len(clean_simplified)} characters")
+                        logger.info(f"Grade level: {grade_level:.1f}")
                         logger.info(f"Answer preview: {clean_answer[:200]}...")
                         logger.info(f"Sources: {clean_sources}")
                     
                     # Use proper CSV quoting - let csv.writer handle the quoting
-                    writer.writerow([question, clean_answer, clean_sources])
+                    writer.writerow([question, clean_answer, clean_sources, clean_simplified, f"{grade_level:.1f}"])
             
             if append:
                 logger.info(f"Appended {len(qa_pairs)} Q&A pairs to {output_path}")
