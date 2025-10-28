@@ -640,8 +640,14 @@ Question: {question}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
             logger.error(f"Generation error: {e}")
             return "I encountered an error while generating the answer."
     
-    def process_questions(self, questions_path: str, **kwargs) -> List[Tuple[str, str, str, str, float]]:
-        """Process all questions and generate answers"""
+    def process_questions(self, questions_path: str, **kwargs) -> List[Tuple[str, str, str, str, str, float, str, float, str, float]]:
+        """Process all questions and generate answers with multiple readability levels
+        
+        Returns:
+            List of tuples: (question, answer, sources, question_group, original_flesch, 
+                            middle_school_answer, middle_school_flesch, 
+                            high_school_answer, high_school_flesch)
+        """
         logger.info(f"Processing questions from {questions_path}")
         
         # Load questions
@@ -664,14 +670,20 @@ Question: {question}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
             logger.info(f"Question {i+1}/{len(questions)}: {question[:50]}...")
             
             try:
+                # Categorize question
+                question_group = self._categorize_question(question)
+                
                 # Retrieve relevant chunks
                 context_chunks = self.retrieve(question, self.args.k)
                 
                 if not context_chunks:
                     answer = "I don't know."
                     sources = "No sources found"
-                    simplified_answer = "I don't know."
-                    grade_level = 6.0
+                    middle_school_answer = "I don't know."
+                    high_school_answer = "I don't know."
+                    original_flesch = 0.0
+                    middle_school_flesch = 0.0
+                    high_school_flesch = 0.0
                 else:
                     # Format prompt
                     prompt = self.format_prompt(context_chunks, question)
@@ -684,32 +696,58 @@ Question: {question}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
                     # Extract source documents
                     sources = self._extract_sources(context_chunks)
                     
-                    # Enhance readability
+                    # Calculate original answer Flesch score
+                    try:
+                        original_flesch = textstat.flesch_kincaid_grade(answer)
+                    except:
+                        original_flesch = 0.0
+                    
+                    # Generate middle school version
                     readability_start = time.time()
-                    simplified_answer, grade_level = self.enhance_readability(answer)
+                    middle_school_answer, middle_school_flesch = self.enhance_readability(answer, "middle_school")
                     readability_time = time.time() - readability_start
+                    logger.info(f"Middle school readability in {readability_time:.2f}s")
+                    
+                    # Generate high school version
+                    readability_start = time.time()
+                    high_school_answer, high_school_flesch = self.enhance_readability(answer, "high_school")
+                    readability_time = time.time() - readability_start
+                    logger.info(f"High school readability in {readability_time:.2f}s")
                     
                     logger.info(f"Generated answer in {gen_time:.2f}s")
-                    logger.info(f"Enhanced readability in {readability_time:.2f}s")
                     logger.info(f"Sources: {sources}")
-                    logger.info(f"Grade level: {grade_level:.1f}")
+                    logger.info(f"Original Flesch: {original_flesch:.1f}, Middle School: {middle_school_flesch:.1f}, High School: {high_school_flesch:.1f}")
                 
-                qa_pairs.append((question, answer, sources, simplified_answer, grade_level))
+                qa_pairs.append((question, answer, sources, question_group, original_flesch, 
+                               middle_school_answer, middle_school_flesch, 
+                               high_school_answer, high_school_flesch))
                 
                 # Write incrementally to CSV after each question
-                self.write_csv([(question, answer, sources, simplified_answer, grade_level)], kwargs.get('output_file', 'results.csv'), append=True)
+                self.write_csv([(question, answer, sources, question_group, original_flesch, 
+                               middle_school_answer, middle_school_flesch, 
+                               high_school_answer, high_school_flesch)], 
+                             kwargs.get('output_file', 'results.csv'), append=True)
                 logger.info(f"Progress saved: {i+1}/{len(questions)} questions completed")
                 
             except Exception as e:
                 logger.error(f"Error processing question {i+1}: {e}")
                 error_answer = "I encountered an error processing this question."
                 sources = "Error retrieving sources"
-                simplified_answer = "I encountered an error processing this question."
-                grade_level = 6.0
-                qa_pairs.append((question, error_answer, sources, simplified_answer, grade_level))
+                question_group = self._categorize_question(question)
+                original_flesch = 0.0
+                middle_school_answer = "I encountered an error processing this question."
+                high_school_answer = "I encountered an error processing this question."
+                middle_school_flesch = 0.0
+                high_school_flesch = 0.0
+                qa_pairs.append((question, error_answer, sources, question_group, original_flesch,
+                               middle_school_answer, middle_school_flesch,
+                               high_school_answer, high_school_flesch))
                 
                 # Still write the error to CSV
-                self.write_csv([(question, error_answer, sources, simplified_answer, grade_level)], kwargs.get('output_file', 'results.csv'), append=True)
+                self.write_csv([(question, error_answer, sources, question_group, original_flesch,
+                               middle_school_answer, middle_school_flesch,
+                               high_school_answer, high_school_flesch)], 
+                             kwargs.get('output_file', 'results.csv'), append=True)
                 logger.info(f"Error saved: {i+1}/{len(questions)} questions completed")
         
         return qa_pairs
@@ -742,22 +780,75 @@ Question: {question}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
         
         return "; ".join(unique_sources)
     
-    def enhance_readability(self, answer: str) -> Tuple[str, float]:
-        """Enhance answer readability to 6th grade level and calculate Flesch-Kincaid Grade Level"""
+    def _categorize_question(self, question: str) -> str:
+        """Categorize a question into one of 5 categories"""
+        question_lower = question.lower()
+        
+        # Gene-Specific Recommendations
+        if any(gene in question_lower for gene in ['msh2', 'mlh1', 'msh6', 'pms2', 'epcam', 'brca1', 'brca2']):
+            if any(kw in question_lower for kw in ['screening', 'surveillance', 'prevention', 'recommendation', 'risk', 'cancer risk', 'steps', 'management']):
+                return "Gene-Specific Recommendations"
+        
+        # Inheritance Patterns
+        if any(kw in question_lower for kw in ['inherit', 'inherited', 'pass', 'skip a generation', 'generation', 'can i pass']):
+            return "Inheritance Patterns"
+        
+        # Family Risk Assessment
+        if any(kw in question_lower for kw in ['family member', 'relative', 'first-degree', 'family risk', 'which relative', 'should my family']):
+            return "Family Risk Assessment"
+        
+        # Genetic Variant Interpretation
+        if any(kw in question_lower for kw in ['what does', 'genetic variant mean', 'variant mean', 'mutation mean', 'genetic result']):
+            return "Genetic Variant Interpretation"
+        
+        # Support and Resources
+        if any(kw in question_lower for kw in ['cope', 'overwhelmed', 'resource', 'genetic counselor', 'support', 'research', 'help', 'insurance', 'gina']):
+            return "Support and Resources"
+        
+        # Default to Genetic Variant Interpretation if unclear
+        return "Genetic Variant Interpretation"
+    
+    def enhance_readability(self, answer: str, target_level: str = "middle_school") -> Tuple[str, float]:
+        """Enhance answer readability to different levels and calculate Flesch-Kincaid Grade Level
+        
+        Args:
+            answer: The original answer to simplify
+            target_level: One of "middle_school" or "high_school"
+        
+        Returns:
+            Tuple of (simplified_answer, grade_level)
+        """
         try:
-            # Create a prompt to simplify the medical answer to 6th grade level
+            # Define prompts for different reading levels
+            if target_level == "middle_school":
+                level_description = "middle school reading level (ages 12-14, 6th-8th grade)"
+                instructions = """
+- Use simpler medical terms or explain them
+- Medium-length sentences
+- Clear, structured explanations
+- Keep important medical information accessible"""
+            elif target_level == "high_school":
+                level_description = "high school reading level (ages 15-18, 9th-12th grade)"
+                instructions = """
+- Use appropriate medical terminology with context
+- Varied sentence length
+- Comprehensive yet accessible explanations
+- Maintain technical accuracy while ensuring clarity"""
+            else:
+                raise ValueError(f"Unknown target_level: {target_level}")
+            
+            # Create a prompt to simplify the medical answer
             readability_prompt = f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
 
-You are a helpful medical assistant who specializes in explaining complex medical information in simple, easy-to-understand language for 6th grade reading level. Rewrite the following medical answer using:
-- Simple, everyday words instead of medical jargon
-- Shorter sentences
-- Clear explanations
-- Avoid complex medical terms when possible
-- Keep the same important information but make it much easier to read
+You are a helpful medical assistant who specializes in explaining complex medical information at appropriate reading levels. Rewrite the following medical answer for {level_description}:
+{instructions}
+- Keep the same important information but adapt the complexity
+- Provide context for technical terms
+- Ensure the answer is informative yet understandable
 
-Target: 6th grade reading level (ages 11-12)<|eot_id|><|start_header_id|>user<|end_header_id|>
+<|eot_id|><|start_header_id|>user<|end_header_id|>
 
-Please rewrite this medical answer in simple language for a 6th grader:
+Please rewrite this medical answer for {level_description}:
 
 {answer}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
 
@@ -821,8 +912,13 @@ Please rewrite this medical answer in simple language for a 6th grader:
                 grade_level = 12.0  # Default to high school level
             return answer, grade_level
     
-    def write_csv(self, qa_pairs: List[Tuple[str, str, str, str, float]], output_path: str, append: bool = False) -> None:
-        """Write Q&A pairs to CSV file in results folder"""
+    def write_csv(self, qa_pairs: List[Tuple[str, str, str, str, float, str, float, str, float]], output_path: str, append: bool = False) -> None:
+        """Write Q&A pairs to CSV file in results folder
+        
+        Expected tuple format: (question, answer, sources, question_group, original_flesch, 
+                               middle_school_answer, middle_school_flesch, 
+                               high_school_answer, high_school_flesch)
+        """
         # Ensure results directory exists
         os.makedirs('results', exist_ok=True)
         
@@ -849,37 +945,51 @@ Please rewrite this medical answer in simple language for a 6th grader:
                 
                 # Write header only if creating new file or first append
                 if not append or not file_exists:
-                    writer.writerow(['question', 'answer', 'sources', '6th_grade_answer', 'flesch_kincaid_grade_level'])
+                    writer.writerow(['question', 'question_group', 'answer', 'original_flesch', 'sources', 
+                                   'middle_school_answer', 'middle_school_flesch', 
+                                   'high_school_answer', 'high_school_flesch'])
                 
-                for question, answer, sources, simplified_answer, grade_level in qa_pairs:
-                    # Clean and escape the answer for CSV
-                    # Replace newlines with spaces and clean up formatting
-                    clean_answer = answer.replace('\n', ' ').replace('\r', ' ')
-                    # Remove extra whitespace but preserve the full content
-                    clean_answer = ' '.join(clean_answer.split())
-                    # Escape quotes properly for CSV
-                    clean_answer = clean_answer.replace('"', '""')
+                for data in qa_pairs:
+                    # Unpack the data tuple
+                    (question, answer, sources, question_group, original_flesch, 
+                     middle_school_answer, middle_school_flesch, 
+                     high_school_answer, high_school_flesch) = data
                     
-                    # Clean sources as well
-                    clean_sources = sources.replace('\n', ' ').replace('\r', ' ')
-                    clean_sources = ' '.join(clean_sources.split())
-                    clean_sources = clean_sources.replace('"', '""')
+                    # Clean and escape the answers for CSV
+                    def clean_text(text):
+                        # Replace newlines with spaces and clean up formatting
+                        cleaned = text.replace('\n', ' ').replace('\r', ' ')
+                        # Remove extra whitespace but preserve the full content
+                        cleaned = ' '.join(cleaned.split())
+                        # Escape quotes properly for CSV
+                        cleaned = cleaned.replace('"', '""')
+                        return cleaned
                     
-                    # Clean simplified answer
-                    clean_simplified = simplified_answer.replace('\n', ' ').replace('\r', ' ')
-                    clean_simplified = ' '.join(clean_simplified.split())
-                    clean_simplified = clean_simplified.replace('"', '""')
+                    clean_question = clean_text(question)
+                    clean_answer = clean_text(answer)
+                    clean_sources = clean_text(sources)
+                    clean_middle_school = clean_text(middle_school_answer)
+                    clean_high_school = clean_text(high_school_answer)
                     
                     # Log the full answer length for debugging
                     if self.args.verbose:
                         logger.info(f"Writing answer length: {len(clean_answer)} characters")
-                        logger.info(f"Simplified answer length: {len(clean_simplified)} characters")
-                        logger.info(f"Grade level: {grade_level:.1f}")
-                        logger.info(f"Answer preview: {clean_answer[:200]}...")
-                        logger.info(f"Sources: {clean_sources}")
+                        logger.info(f"Middle school answer length: {len(clean_middle_school)} characters")
+                        logger.info(f"High school answer length: {len(clean_high_school)} characters")
+                        logger.info(f"Question group: {question_group}")
                     
                     # Use proper CSV quoting - let csv.writer handle the quoting
-                    writer.writerow([question, clean_answer, clean_sources, clean_simplified, f"{grade_level:.1f}"])
+                    writer.writerow([
+                        clean_question, 
+                        question_group,
+                        clean_answer, 
+                        f"{original_flesch:.1f}",
+                        clean_sources, 
+                        clean_middle_school, 
+                        f"{middle_school_flesch:.1f}",
+                        clean_high_school, 
+                        f"{high_school_flesch:.1f}"
+                    ])
             
             if append:
                 logger.info(f"Appended {len(qa_pairs)} Q&A pairs to {output_path}")
