@@ -1,6 +1,6 @@
 # RAG Chatbot with Vector Database
 
-A production-ready Retrieval-Augmented Generation (RAG) chatbot built in Python that runs efficiently on Apple Silicon (M2 Max) using MPS acceleration. The system processes documents from local folders, answers questions using a vector database for fast retrieval, and outputs results to CSV files.
+A production-ready Retrieval-Augmented Generation (RAG) chatbot built in Python that runs efficiently on Apple Silicon using MPS acceleration. The system processes documents from local folders, answers questions using a vector database for fast retrieval, and outputs results to CSV files.
 
 ## 🚀 Features
 
@@ -12,7 +12,9 @@ A production-ready Retrieval-Augmented Generation (RAG) chatbot built in Python 
 - **🎯 Semantic Search**: Sentence-transformers for intelligent document retrieval
 - **📋 Source Attribution**: Automatic source document tracking for transparency
 - **💾 Incremental Saving**: Progress saved after each question for reliability
-- **📚 Readability Enhancement**: Automatic 6th-grade level simplification with Flesch-Kincaid scoring
+- **📚 Readability Enhancement**: Automatic middle school and high school level simplification with Flesch-Kincaid scoring
+- **📊 Question Categorization**: Automatic grouping into 5 categories (Genetic Variant Interpretation, Inheritance Patterns, Family Risk Assessment, Gene-Specific Recommendations, Support and Resources)
+- **📈 Similarity Scores**: Retrieval quality metrics included in output
 - **📈 Production Ready**: Comprehensive logging, error handling, and CLI interface
 
 ## 📋 Requirements
@@ -49,7 +51,7 @@ CGT-LLM-Beta/
 ├── README.md                # This file
 ├── .gitignore               # Git ignore rules
 ├── results/                 # Generated CSV outputs
-├── chromadb/                # Vector database storage
+├── chroma_db/               # Vector database storage (default)
 └── Data Resources/          # Source documents
 ```
 
@@ -57,12 +59,12 @@ CGT-LLM-Beta/
 
 ### First Run (Build Vector Database)
 ```bash
-python bot.py --questions question.txt --out answers.csv --vector-db-dir ./chromadb
+python bot.py --questions question.txt --out answers.csv
 ```
 
 ### Subsequent Runs (Lightning Fast!)
 ```bash
-python bot.py --questions question.txt --out answers.csv --skip-indexing --vector-db-dir ./chromadb
+python bot.py --questions question.txt --out answers.csv --skip-indexing
 ```
 
 ## 📖 Usage
@@ -101,15 +103,15 @@ python bot.py --questions questions.txt --out results.csv --model meta-llama/Lla
 
 | Argument | Description | Default |
 |----------|-------------|---------|
-| `--questions` | Input questions file (one per line) | Required |
-| `--out` | Output CSV file path | Required |
+| `--questions` | Input questions file (one per line) | `./questions.txt` |
+| `--out` | Output CSV file path | `./answers.csv` |
 | `--data-dir` | Directory containing source documents | `./Data Resources` |
-| `--vector-db-dir` | Vector database storage directory | `./chromadb` |
+| `--vector-db-dir` | Vector database storage directory | `./chroma_db` |
 | `--k` | Number of chunks to retrieve | `5` |
 | `--chunk-size` | Document chunk size in tokens | `500` |
 | `--chunk-overlap` | Overlap between chunks | `200` |
 | `--max-new-tokens` | Maximum tokens to generate | `1024` |
-| `--temperature` | Generation temperature (0.0-1.0) | `0.8` |
+| `--temperature` | Generation temperature (0.0-1.0) | `0.2` |
 | `--top-p` | Top-p sampling parameter | `0.9` |
 | `--repetition-penalty` | Repetition penalty factor | `1.1` |
 | `--model` | HuggingFace model name to use | `meta-llama/Llama-3.2-3B-Instruct` |
@@ -129,10 +131,25 @@ What are the symptoms of cancer?
 ```
 
 ### Output File (`results/answers.csv`)
+
+The CSV output contains 11 columns:
+
+1. `question` - The original question
+2. `question_group` - Category (Genetic Variant Interpretation, Inheritance Patterns, Family Risk Assessment, Gene-Specific Recommendations, Support and Resources)
+3. `answer` - Original LLM-generated answer
+4. `original_flesch` - Flesch-Kincaid grade level of original answer
+5. `sources` - Source documents used (semicolon-separated)
+6. `similarity_scores` - Similarity scores for retrieved chunks (comma-separated)
+7. `middle_school_answer` - Answer simplified to middle school reading level
+8. `middle_school_flesch` - Flesch-Kincaid grade level of middle school answer
+9. `high_school_answer` - Answer simplified to high school reading level
+10. `high_school_flesch` - Flesch-Kincaid grade level of high school answer
+11. `improved_answer (PROMPT: ...)` - Answer using improved medical communication prompt
+
+**Example:**
 ```csv
-question,answer,sources,6th_grade_answer,flesch_kincaid_grade_level
-"What is Lynch Syndrome?","According to the text, Lynch syndrome (also known as hereditary nonpolyposis colorectal cancer) is: * An autosomal dominant disorder * Refers to individuals and/or families who have a pathogenic germline mutation in one of the DNA mismatch repair genes (MLH1, MSH2, MSH6, and PMS2) or the EPCAM gene. * Can be transmitted by either parent to approximately 50% of offspring. It is characterized by an increased risk of developing various types of cancer, including colorectal, endometrial, ovarian, stomach, small bowel, pancreatobiliary system, genitourinary system (urothelial cancer), prostate, brain, and skin cancers, as well as breast cancer in some cases.","Lynch syndrome (hereditary nonpolyposis colorectal cancer)_ Cancer screening and management - UpToDate; uterine; ovarian-ukrainian","Here's a rewritten version of the text in simpler language: **What is Lynch Syndrome?** Lynch syndrome is a condition that runs in families. It's caused by a problem with our DNA. This problem can be passed down from one parent to their child. **What happens in people with Lynch syndrome?** People with Lynch syndrome are more likely to get certain types of cancer. These include: * Colorectal cancer (which affects the colon) * Cancer of the uterus (endometrial cancer) * Ovarian cancer * Stomach cancer * Pancreas cancer * Cancer of the bile ducts * Bladder cancer * Prostate cancer * Brain cancer * Skin cancer * Breast cancer (in some cases) **How does it work?** The problem with Lynch syndrome is that our bodies have trouble fixing mistakes in our DNA. This makes us more likely to develop cancer. It's not because of anything we did or didn't do, but just because of how our DNA works. I hope this helps! Let me know if you'd like me to simplify anything further.",6.2
-"How does genetic testing work?","Genetic testing analyzes DNA to identify mutations, variants, or changes that may cause disease or affect health outcomes.","genetics_ceg; Cancer risks in BRCA1_2 carriers - UpToDate","Genetic testing is like looking at a recipe book for your body. It checks your DNA (which is like the instructions that tell your body how to work) to see if there are any mistakes or changes that might cause health problems.","5.8"
+question,question_group,answer,original_flesch,sources,similarity_scores,middle_school_answer,middle_school_flesch,high_school_answer,high_school_flesch,improved_answer (PROMPT: ...)
+"What is Lynch Syndrome?","Genetic Variant Interpretation","Lynch syndrome is...",12.5,"Lynch syndrome (hereditary nonpolyposis colorectal cancer)_ Cancer screening and management - UpToDate","0.349, 0.317, 0.282","Lynch syndrome is a condition...",7.2,"Lynch syndrome is a hereditary condition...",9.8,"Lynch syndrome is a hereditary condition..."
 ```
 
 ## 🔧 Configuration
@@ -211,7 +228,8 @@ python bot.py --questions questions.txt --out results.csv --model <private-model
 - **Initial Indexing**: ~30 seconds for 8,964 documents
 - **Subsequent Queries**: <1 second retrieval time
 - **Generation**: ~7-20 seconds per question (optimized settings)
-- **Readability Enhancement**: ~35 seconds per question (additional LLM call)
+- **Readability Enhancement**: ~70 seconds per question (2 additional LLM calls for middle/high school)
+- **Improved Answer**: ~7-20 seconds per question (additional LLM call)
 - **Incremental Saving**: Progress saved after each question
 
 ### Memory Usage
@@ -239,7 +257,7 @@ python -c "import torch; print(torch.backends.mps.is_available())"
 **3. Vector Database Corruption**
 ```bash
 # Rebuild vector database
-python bot.py --questions test.txt --out test.csv --force-rebuild --vector-db-dir ./chromadb
+python bot.py --questions test.txt --out test.csv --force-rebuild
 ```
 
 **4. Memory Issues**
@@ -268,7 +286,7 @@ python bot.py \
   --questions medical_questions.txt \
   --out results/medical_answers.csv \
   --model meta-llama/Llama-3.2-3B-Instruct \
-  --vector-db-dir ./chromadb \
+  --vector-db-dir ./chroma_db \
   --k 3 \
   --temperature 0.8 \
   --max-new-tokens 1024 \
@@ -291,7 +309,7 @@ python bot.py \
   --questions research_questions.txt \
   --out results/research_analysis.csv \
   --data-dir ./Research_Papers \
-  --vector-db-dir ./chromadb \
+  --vector-db-dir ./chroma_db \
   --k 3 \
   --max-new-tokens 1024 \
   --temperature 0.8
@@ -304,16 +322,17 @@ python bot.py \
 - **💾 Incremental Saving**: Progress automatically saved after each question
 - **⚡ Optimized Performance**: Faster generation with improved parameters
 - **🔧 Better Error Handling**: Robust error recovery and logging
-- **📊 Enhanced Output**: 5-column CSV format (question, answer, sources, 6th_grade_answer, flesch_kincaid_grade_level)
-- **📚 Readability Enhancement**: Automatic simplification to 6th-grade reading level
+- **📊 Enhanced Output**: 11-column CSV format with question categorization, similarity scores, and multiple readability levels
+- **📚 Readability Enhancement**: Automatic simplification to middle school and high school reading levels
+- **🎯 Improved Medical Communication**: Enhanced prompting for better patient communication
 
 ### Key Optimizations
 - **Multi-Model Support**: Compatible with any HuggingFace LLM via `--model` parameter
 - **Model-Aware Prompting**: Automatically uses chat templates when available
 - **Context Management**: Dynamic truncation to prevent token overflow
-- **Generation Parameters**: Optimized temperature (0.8) and max tokens (1024)
-- **Chunk Size**: Reduced to 400 tokens for better context fitting
-- **Retrieval**: Default k=3 for optimal balance of context and speed
+- **Generation Parameters**: Optimized temperature (0.2) and max tokens (1024)
+- **Chunk Size**: Optimized to 500 tokens with 200 token overlap
+- **Retrieval**: Default k=5 for better context retrieval
 
 ### Production Features
 - **Resume Capability**: Process can resume from interruption point
@@ -323,25 +342,31 @@ python bot.py \
 
 ## 📚 Readability Enhancement
 
-### Two-Stage Processing Pipeline
-1. **Medical Answer Generation**: Original detailed medical response
-2. **Readability Enhancement**: Simplified version for 6th-grade reading level
+### Multi-Level Processing Pipeline
+1. **Medical Answer Generation**: Original detailed medical response with Flesch-Kincaid score
+2. **Middle School Enhancement**: Simplified version for middle school reading level (ages 13-14, 7th-8th grade)
+3. **High School Enhancement**: Simplified version for high school reading level (ages 15-18, 9th-12th grade)
+4. **Improved Answer**: Enhanced version using improved medical communication guidelines
 
 ### Features
-- **Automatic Simplification**: Complex medical terms converted to everyday language
-- **Flesch-Kincaid Scoring**: Objective readability measurement (target: 6.0)
-- **Preserved Information**: All important medical facts maintained
-- **Dual Output**: Both original and simplified versions provided
+- **Automatic Simplification**: Complex medical terms converted to appropriate reading levels
+- **Flesch-Kincaid Scoring**: Objective readability measurement for all answer versions
+- **Preserved Information**: All important medical facts maintained across all versions
+- **Multiple Outputs**: Original, middle school, high school, and improved versions provided
+- **Question Categorization**: Automatic grouping into 5 medical categories
+- **Similarity Scores**: Retrieval quality metrics for transparency
 
 ### Example Transformation
 **Original**: "Lynch syndrome is an autosomal dominant disorder characterized by pathogenic germline mutations in DNA mismatch repair genes..."
 
-**Simplified**: "Lynch syndrome is a condition that runs in families. It's caused by a problem with our DNA. This problem can be passed down from one parent to their child."
+**Middle School**: "Lynch syndrome is a condition that runs in families. It's caused by a problem with our DNA. This problem can be passed down from one parent to their child."
+
+**High School**: "Lynch syndrome is a hereditary condition caused by mutations in DNA repair genes. These mutations can be inherited from either parent and increase cancer risk."
 
 ### Grade Level Interpretation
-- **6.0-7.0**: Target range for accessibility
-- **8.0-10.0**: Acceptable for general audience
-- **11.0+**: May need further simplification
+- **6.0-8.0**: Middle school target range
+- **9.0-12.0**: High school target range
+- **13.0+**: May need further simplification
 
 ## 🏗️ Architecture
 
@@ -354,7 +379,7 @@ graph TB
     end
     
     subgraph "Processing Layer"
-        D --> E[Text Chunking<br/>800 tokens, 150 overlap]
+        D --> E[Text Chunking<br/>500 tokens, 200 overlap]
         E --> F[Sentence Transformers<br/>all-MiniLM-L6-v2]
         F --> G[Vector Embeddings<br/>384 dimensions]
     end
@@ -379,7 +404,7 @@ graph TB
     end
     
     subgraph "Output Layer"
-        S --> P[CSV Results<br/>5 columns with readability]
+        S --> P[CSV Results<br/>11 columns with readability<br/>question groups and similarity scores]
         L --> Q[Source Attribution<br/>Document Tracking]
         Q --> P
         I --> K
@@ -417,7 +442,7 @@ sequenceDiagram
     participant Embedder as Sentence Transformer
     participant DB as ChromaDB
     participant Retriever as Vector Retriever
-    participant LLM as Llama-3.2-3B
+    participant LLM as LLM Model
     participant Readability as Readability Enhancer
     participant Output as CSV Output
     participant Sources as Source Tracker
@@ -425,7 +450,7 @@ sequenceDiagram
     Note over User,Output: Initial Setup (One-time)
     User->>CLI: python bot.py --questions q.txt --out a.csv
     CLI->>Loader: Load documents from Data Resources/
-    Loader->>Chunker: Split into 800-token chunks
+    Loader->>Chunker: Split into 500-token chunks (200 overlap)
     Chunker->>Embedder: Generate embeddings
     Embedder->>DB: Store vectors in ChromaDB
     Note over DB: 8,964 documents indexed<br/>Persistent storage
@@ -438,10 +463,12 @@ sequenceDiagram
     Retriever->>Sources: Track source documents
     Retriever->>LLM: Format prompt with context
     LLM-->>Retriever: Generate medical answer
-    Retriever->>Readability: Simplify to 6th grade level
-    Readability-->>Retriever: Simplified answer + grade level
-    Sources-->>Retriever: Source attribution
-    Retriever->>Output: Save to results/answers.csv<br/>(question, answer, sources, 6th_grade_answer, grade_level)
+        Retriever->>Readability: Simplify to middle/high school levels
+        Readability-->>Retriever: Middle school + high school answers + grade levels
+        Retriever->>Improved: Generate improved answer
+        Improved-->>Retriever: Enhanced medical communication answer
+        Sources-->>Retriever: Source attribution + similarity scores
+        Retriever->>Output: Save to results/answers.csv<br/>(11 columns: question, question_group, answer, original_flesch, sources, similarity_scores, middle_school_answer, middle_school_flesch, high_school_answer, high_school_flesch, improved_answer)
     Output-->>User: Return results with readability scores
 ```
 
@@ -451,7 +478,7 @@ sequenceDiagram
 - **RAG System**: Fully functional retrieval-augmented generation
 - **Vector Database**: ChromaDB with persistent embeddings
 - **Source Attribution**: Complete document tracking
-- **Readability Enhancement**: Automatic 6th-grade simplification with Flesch-Kincaid scoring
+- **Readability Enhancement**: Automatic middle school and high school simplification with Flesch-Kincaid scoring
 - **Incremental Saving**: Robust progress preservation
 - **Apple Silicon**: Optimized for M2 Max performance
 - **Medical Q&A**: Successfully processed 49 medical questions
@@ -461,7 +488,7 @@ sequenceDiagram
 - **Total Questions Processed**: 49/49 (100% completion)
 - **Average Response Time**: ~50 seconds per question (including readability enhancement)
 - **Source Accuracy**: 100% source attribution
-- **Readability Success**: Average grade level 6.2 (target: 6.0)
+- **Readability Success**: Multiple grade levels tracked (middle school and high school targets)
 - **Answer Quality**: Comprehensive medical responses with simplified versions
 - **System Reliability**: Zero data loss with incremental saving
 
