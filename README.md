@@ -105,9 +105,9 @@ python bot.py --questions questions.txt --out results.csv --model meta-llama/Lla
 | `--out` | Output CSV file path | Required |
 | `--data-dir` | Directory containing source documents | `./Data Resources` |
 | `--vector-db-dir` | Vector database storage directory | `./chromadb` |
-| `--k` | Number of chunks to retrieve | `3` |
-| `--chunk-size` | Document chunk size in tokens | `400` |
-| `--chunk-overlap` | Overlap between chunks | `150` |
+| `--k` | Number of chunks to retrieve | `5` |
+| `--chunk-size` | Document chunk size in tokens | `500` |
+| `--chunk-overlap` | Overlap between chunks | `200` |
 | `--max-new-tokens` | Maximum tokens to generate | `1024` |
 | `--temperature` | Generation temperature (0.0-1.0) | `0.8` |
 | `--top-p` | Top-p sampling parameter | `0.9` |
@@ -372,7 +372,7 @@ graph TB
     
     subgraph "Generation Layer"
         L --> M[Context Assembly<br/>Prompt Formatting]
-        M --> N[LLM Model<br/>(Configurable via --model)<br/>MPS/CUDA/CPU Accelerated]
+        M --> N[LLM Model<br/>Configurable via --model<br/>MPS/CUDA/CPU Accelerated]
         N --> O[Answer Generation<br/>Medical Responses]
         O --> R[Readability Enhancement<br/>Middle/High School Levels]
         R --> S[Flesch-Kincaid<br/>Grade Level Calculation]
