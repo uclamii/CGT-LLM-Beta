@@ -5,7 +5,7 @@ A production-ready Retrieval-Augmented Generation (RAG) chatbot built in Python 
 ## 🚀 Features
 
 - **⚡ Lightning Fast Retrieval**: ChromaDB vector database with sub-second query times
-- **🧠 Advanced Language Model**: Llama-3.2-3B-Instruct for high-quality medical responses
+- **🧠 Multi-Model Support**: Compatible with various HuggingFace LLMs (Llama, Mistral, Phi, and more)
 - **🍎 Apple Silicon Optimized**: Full MPS acceleration support for M2 Max
 - **📊 Persistent Storage**: Vector embeddings cached for instant reuse
 - **📁 Multi-format Support**: Handles TXT, MD, JSON, CSV, PDF, and DOCX files
@@ -78,10 +78,23 @@ python bot.py \
   --questions question.txt \
   --out results/answers.csv \
   --vector-db-dir ./chroma_db \
+  --model mistralai/Mistral-7B-Instruct-v0.2 \
   --k 5 \
   --temperature 0.7 \
   --max-new-tokens 512 \
   --verbose
+```
+
+### Using Different Models
+```bash
+# Use Mistral model
+python bot.py --questions questions.txt --out results.csv --model mistralai/Mistral-7B-Instruct-v0.2
+
+# Use Phi-3 model
+python bot.py --questions questions.txt --out results.csv --model microsoft/Phi-3-mini-4k-instruct
+
+# Use larger Llama model
+python bot.py --questions questions.txt --out results.csv --model meta-llama/Llama-3.1-8B-Instruct
 ```
 
 ### Command Line Arguments
@@ -99,10 +112,12 @@ python bot.py \
 | `--temperature` | Generation temperature (0.0-1.0) | `0.8` |
 | `--top-p` | Top-p sampling parameter | `0.9` |
 | `--repetition-penalty` | Repetition penalty factor | `1.1` |
+| `--model` | HuggingFace model name to use | `meta-llama/Llama-3.2-3B-Instruct` |
 | `--force-rebuild` | Force rebuild vector database | `False` |
 | `--skip-indexing` | Skip document indexing | `False` |
 | `--verbose` | Enable detailed logging | `False` |
 | `--dry-run` | Test mode without generation | `False` |
+| `--diagnose` | Run system diagnostics and exit | `False` |
 
 ## 📊 Input/Output Format
 
@@ -122,10 +137,63 @@ question,answer,sources,6th_grade_answer,flesch_kincaid_grade_level
 
 ## 🔧 Configuration
 
+### Model Selection
+
+The pipeline supports any HuggingFace model compatible with `AutoModelForCausalLM`. You can specify a model using the `--model` argument:
+
+```bash
+python bot.py --questions questions.txt --out results.csv --model <model_name>
+```
+
+### Supported Models
+
+#### Recommended Models (Tested & Verified)
+
+**Small Models (3B-7B parameters) - Fast, efficient:**
+- `meta-llama/Llama-3.2-3B-Instruct` ⭐ **Default** - Excellent balance of quality and speed
+- `meta-llama/Llama-3.2-1B-Instruct` - Fastest option, good for quick testing
+- `microsoft/Phi-3-mini-4k-instruct` - Compact and efficient
+- `microsoft/Phi-3-medium-4k-instruct` - Better quality than mini
+
+**Medium Models (7B-13B parameters) - Better quality:**
+- `mistralai/Mistral-7B-Instruct-v0.2` - High quality responses
+- `mistralai/Mistral-7B-Instruct-v0.3` - Latest Mistral version
+- `meta-llama/Llama-3.1-8B-Instruct` - Larger Llama variant
+- `NousResearch/Nous-Hermes-2-Mixtral-8x7B-DPO` - High quality (requires more memory)
+
+**Large Models (13B+ parameters) - Best quality (requires more resources):**
+- `meta-llama/Llama-3.1-70B-Instruct` - Highest quality (requires significant memory)
+- `mistralai/Mixtral-8x7B-Instruct-v0.1` - Mixture of experts model
+
+#### Model Compatibility
+
+The pipeline automatically:
+- ✅ Uses model's chat template if available (most modern models)
+- ✅ Falls back to manual formatting for models without templates
+- ✅ Handles device placement (MPS/CUDA/CPU) automatically
+- ✅ Sets appropriate precision (float16/float32) based on device
+
+#### Model Requirements
+
+Models must:
+- Be available on HuggingFace Hub
+- Use `AutoModelForCausalLM` architecture
+- Support instruction/chat format
+- Be compatible with your device's memory
+
+#### Using Private Models
+
+For private/gated models, authenticate first:
+```bash
+huggingface-cli login
+python bot.py --questions questions.txt --out results.csv --model <private-model-name>
+```
+
 ### Model Settings
-- **Model**: `meta-llama/Llama-3.2-3B-Instruct`
-- **Device**: Automatic MPS detection for Apple Silicon
-- **Precision**: `torch.float16` on MPS, `torch.float32` on CPU
+- **Default Model**: `meta-llama/Llama-3.2-3B-Instruct`
+- **Device**: Automatic MPS/CUDA/CPU detection
+- **Precision**: `torch.float16` on MPS/CUDA, `torch.float32` on CPU
+- **Chat Templates**: Automatically detected and used when available
 
 ### Vector Database
 - **Embedding Model**: `all-MiniLM-L6-v2` (384 dimensions)
@@ -199,11 +267,21 @@ python bot.py --questions test.txt --out test.csv --verbose --dry-run
 python bot.py \
   --questions medical_questions.txt \
   --out results/medical_answers.csv \
+  --model meta-llama/Llama-3.2-3B-Instruct \
   --vector-db-dir ./chromadb \
   --k 3 \
   --temperature 0.8 \
   --max-new-tokens 1024 \
   --verbose
+```
+
+### System Diagnostics
+```bash
+# Check document loading, chunking, and retrieval
+python bot.py --diagnose
+
+# Run diagnostics with custom model
+python bot.py --diagnose --model mistralai/Mistral-7B-Instruct-v0.2
 ```
 
 ### Research Analysis
@@ -230,7 +308,8 @@ python bot.py \
 - **📚 Readability Enhancement**: Automatic simplification to 6th-grade reading level
 
 ### Key Optimizations
-- **Model**: Upgraded to Llama-3.2-3B-Instruct for better instruction following
+- **Multi-Model Support**: Compatible with any HuggingFace LLM via `--model` parameter
+- **Model-Aware Prompting**: Automatically uses chat templates when available
 - **Context Management**: Dynamic truncation to prevent token overflow
 - **Generation Parameters**: Optimized temperature (0.8) and max tokens (1024)
 - **Chunk Size**: Reduced to 400 tokens for better context fitting
@@ -293,9 +372,9 @@ graph TB
     
     subgraph "Generation Layer"
         L --> M[Context Assembly<br/>Prompt Formatting]
-        M --> N[Llama-3.2-3B-Instruct<br/>MPS Accelerated]
+        M --> N[LLM Model<br/>(Configurable via --model)<br/>MPS/CUDA/CPU Accelerated]
         N --> O[Answer Generation<br/>Medical Responses]
-        O --> R[Readability Enhancement<br/>6th Grade Simplification]
+        O --> R[Readability Enhancement<br/>Middle/High School Levels]
         R --> S[Flesch-Kincaid<br/>Grade Level Calculation]
     end
     
@@ -321,11 +400,12 @@ graph TB
 3. **Embedding Generation**: Sentence-transformers for semantic vectors
 4. **Vector Storage**: ChromaDB with HNSW indexing for fast retrieval
 5. **Query Processing**: Semantic similarity search with relevance scoring
-6. **Answer Generation**: Llama-3.2-3B-Instruct with context injection
-7. **Readability Enhancement**: Second LLM call for 6th-grade simplification
-8. **Grade Level Calculation**: Flesch-Kincaid scoring for accessibility
-9. **Source Attribution**: Automatic tracking of source documents
-10. **Incremental Output**: Progress saved after each question
+6. **Answer Generation**: Configurable LLM model with context injection
+7. **Readability Enhancement**: Multiple LLM calls for middle school and high school levels
+8. **Improved Answer Generation**: Enhanced prompting for better medical communication
+9. **Grade Level Calculation**: Flesch-Kincaid scoring for accessibility
+10. **Source Attribution**: Automatic tracking of source documents
+11. **Incremental Output**: Progress saved after each question
 
 ### Data Flow Diagram
 ```mermaid
